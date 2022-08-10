@@ -6,6 +6,18 @@ const token0 = require('./abis/uniswap/token0.json');
 const token1 = require('./abis/uniswap/token1.json');
 const numTokensWrapped = require('./abis/erc95/numTokensWrapped.json');
 const getTokenInfo = require('./abis/erc95/getTokenInfo.json');
+const { staking }= require("../helper/staking");
+const { sumTokensAndLPsSharedOwners }= require("../helper/unwrapLPs");
+
+const vaultStakingContract = "0xc5cacb708425961594b63ec171f4df27a9c0d8c9";
+const treasurycontract = "0x5A16552f59ea34E44ec81E58b3817833E9fD5436";
+const clend = "0x54b276c8a484ebf2a244d933af5ffaf595ea58c5";
+
+const CORE = "0x62359Ed7505Efc61FF1D56fEF82158CcaffA23D7";
+const DAI = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+const DELTA = "0x9EA3b5b4EC044b70375236A281986106457b20EF";
+const COREDAO = "0xf66Cd2f8755a21d3c8683a10269F795c0532Dd58";
 
 const zero = new BigNumber(0);
 
@@ -14,6 +26,7 @@ const configs = {
     '0x32Ce7e48debdccbFE0CD037Cc89526E4382cb81b', // CORE/WETH
     '0x6fad7D44640c5cd0120DEeC0301e8cf850BecB68', // CORE/cBTC
     '0x01AC08E821185b6d87E68c67F9dc79A8988688EB', // coreDAI/wCORE
+	'0x85d9DCCe9Ea06C2621795889Be650A8c3Ad844BB', // CORE/Fanny
   ],
   erc95TokenAddresses: [
     '0x7b5982dcAB054C377517759d0D2a3a5D02615AB8', // cBTC
@@ -161,15 +174,40 @@ function flattenUnderlyingReserves(underlyingReserves) {
   return reserves;
 }
 
-async function tvl(timestamp, block) {
+async function LGEtvl(timestamp, block) {
   const pairInfo = await getUniswapPairInfo(configs.pairAddresses, timestamp, block);
   const underlyingReserves = await Promise.all(pairInfo.map(info => getPairUnderlyingReserves(info, timestamp, block)));
   const balances = flattenUnderlyingReserves(underlyingReserves);
 
   return balances;
 }
+async function LGEtreasury(timestamp, block) {
+const balances = {};
+
+await sumTokensAndLPsSharedOwners(
+    balances,
+    [
+      [CORE, false],
+      [DAI, false],
+	  [WETH, false],
+	  [DELTA, false],
+	  [COREDAO, false],
+    ],
+    [treasurycontract,clend,vaultStakingContract],
+    block,
+    'ethereum'
+  );
+  return balances;
+ 
+}
 
 module.exports = {
-  start: 1601142406,    // 2020-09-26 17:46:46 (UTC)
-  ethereum: { tvl }
+  misrepresentedTokens: true,
+  start: 1601142406, 
+  ethereum: {
+	staking: staking(vaultStakingContract, CORE),
+	treasury:LGEtreasury,
+    tvl:LGEtvl
+  },
+  methodology: "Counts liquidty on the Staking and Pool2",
 };
